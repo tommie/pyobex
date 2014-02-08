@@ -100,7 +100,7 @@ event_callback(obex_t * handle, obex_object_t * object,
     cb_dict = user_data->eventcb_dict;
     self = (PyObject *) user_data->self;
     _event = PyInt_FromLong(event);
-    cb_object = PyDict_GetItem(cb_dict, _event);
+    cb_object = PyObject_GetItem(cb_dict, _event);
 
     if(!cb_object) {
         debug("EVENT=%04x, CMD=%04x unhandled\n", event, obex_cmd);
@@ -407,8 +407,8 @@ pyobex_disconnect(PyObex * self)
 static PyObject *
 pyobex_set_callbacks(PyObex * self, PyObject * args)
 {
-    if (!PyDict_Check(args)) {
-        PyErr_SetString(PyExc_RuntimeError, "only dictionary type can set");
+    if (!PyMapping_Check(args)) {
+        PyErr_SetString(PyExc_RuntimeError, "only mapping types can be set");
         return NULL;
     }
     ObexUserData *user_data =
