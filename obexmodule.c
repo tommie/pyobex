@@ -45,14 +45,7 @@
 #ifndef OBEX_CMD_SESSION
 #define OBEX_CMD_SESSION    0x07 /* used for reliable session support */
 #endif
-    
 
-/* from obex_header.h */
-#define OBEX_HI_MASK     0xc0
-#define OBEX_UNICODE     0x00
-#define OBEX_BYTE_STREAM 0x40
-#define OBEX_BYTE        0x80
-#define OBEX_INT         0xc0
 
 static PyTypeObject PyObex_Type;
 static PyTypeObject PyObexObject_Type;
@@ -239,11 +232,14 @@ pyobex_register_irda(PyObex * self, PyObject * args)
 }
 
 static PyObject *
-pyobex_register_inet(PyObex * self, PyObject * args)
+pyobex_register_tcp(PyObex * self, PyObject * args)
 {
     int rc;
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    rc = InOBEX_ServerRegister(self->obex);
+    rc = TcpOBEX_ServerRegister(self->obex, (struct sockaddr*) &address, sizeof(address));
     if (rc == -1) {
         PyErr_SetString(PyExc_OSError, strerror(errno));
         return NULL;
@@ -281,7 +277,7 @@ pyobex_register(PyObex * self, PyObject * args)
             return pyobex_register_bluetooth(self, args);
 #endif
         case OBEX_TRANS_INET:
-            return pyobex_register_inet(self, args);
+            return pyobex_register_tcp(self, args);
     }
     PyErr_SetString(PyExc_RuntimeError, "Not Support Transport type");
     return NULL;
@@ -312,18 +308,19 @@ pyobex_connect_irda(PyObex * self, PyObject * args)
 }
 
 static PyObject *
-pyobex_connect_inet(PyObex * self, PyObject * args)
+pyobex_connect_tcp(PyObex * self, PyObject * args)
 {
     char *addr;
     int rc;
-    if (!PyArg_ParseTuple(args, "s:obex_connect_inet", &addr)) {
+    if (!PyArg_ParseTuple(args, "s:obex_connect_tcp", &addr)) {
         return NULL;
     }
     struct sockaddr_in address;
+    address.sin_family = AF_INET;
     address.sin_addr.s_addr = inet_addr(addr);
     int len = sizeof(address);
 
-    rc = InOBEX_TransportConnect(self->obex, (struct sockaddr *) &address,
+    rc = TcpOBEX_TransportConnect(self->obex, (struct sockaddr *) &address,
                  len);
     if (rc == -1) {
         PyErr_SetString(PyExc_OSError, strerror(errno));
@@ -391,7 +388,7 @@ pyobex_connect(PyObex * self, PyObject * args)
             return pyobex_connect_bluetooth(self, args);
 #endif
         case OBEX_TRANS_INET:
-            return pyobex_connect_inet(self, args);
+            return pyobex_connect_tcp(self, args);
         case OBEX_TRANS_FD:
             return pyobex_transport_setup(self, args);
     }
@@ -672,8 +669,8 @@ pyobex_object_add_header(PyObexObject * self, PyObject * args)
     }
     null = PyUnicode_FromOrdinal(0);
 
-    switch (hdr_type & OBEX_HI_MASK) {
-        case OBEX_INT:
+    switch (hdr_type & OBEX_HDR_TYPE_MASK) {
+        case OBEX_HDR_TYPE_UINT32:
             if (PyInt_Check(hdr_data)) {
                 hv.bq4 = (uint32_t) PyInt_AsLong(hdr_data);
                 hv_size = 4;
@@ -688,7 +685,7 @@ pyobex_object_add_header(PyObexObject * self, PyObject * args)
                 return NULL;
             }
             break;
-        case OBEX_BYTE:
+        case OBEX_HDR_TYPE_UINT8:
             if (PyString_Check(hdr_data)) {
                 size = PyString_GET_SIZE(hdr_data);
                 if (size == 1) {
@@ -717,7 +714,7 @@ pyobex_object_add_header(PyObexObject * self, PyObject * args)
                 }
             }
             break;
-        case OBEX_BYTE_STREAM:
+        case OBEX_HDR_TYPE_BYTES:
             if (PyBuffer_Check(hdr_data)) {
                 if (PyObject_AsReadBuffer
                         (hdr_data, (const void **) &hv.bs, &hv_size) < 0) {
@@ -748,7 +745,7 @@ pyobex_object_add_header(PyObexObject * self, PyObject * args)
                 return NULL;
             }
             break;
-        case OBEX_UNICODE:
+        case OBEX_HDR_TYPE_UNICODE:
             /* convert to UCS2 */
             if (hdr_data == Py_None) {
                 hv.bs = NULL;
@@ -838,17 +835,17 @@ pyobex_object_get_headers(PyObexObject * self)
             return NULL;
         }
         int byteorder = 1;
-        switch (hdr_type & OBEX_HI_MASK) {
-            case OBEX_INT:
+        switch (hdr_type & OBEX_HDR_TYPE_MASK) {
+            case OBEX_HDR_TYPE_UINT32:
                 object = PyInt_FromLong(hv.bq4);
                 break;
-            case OBEX_BYTE:
+            case OBEX_HDR_TYPE_UINT8:
                 object = PyInt_FromLong((long) hv.bq1);
                 break;
-            case OBEX_BYTE_STREAM:
+            case OBEX_HDR_TYPE_BYTES:
                 object = PyBuffer_FromMemory((void *) hv.bs, hv_size);
                 break;
-            case OBEX_UNICODE:
+            case OBEX_HDR_TYPE_UNICODE:
                 object =
                 PyUnicode_DecodeUTF16((const char *) hv.bs, hv_size, NULL,
                               &byteorder);
@@ -1119,8 +1116,8 @@ init_obex()
     PyDict_SetItemString(d, "ObexObject",
              (PyObject *) & PyObexObject_Type);
 
-    PyModule_AddIntConstant(m, "CLIENT", OBEX_CLIENT);
-    PyModule_AddIntConstant(m, "SERVER", OBEX_SERVER);
+    PyModule_AddIntConstant(m, "MODE_CLIENT", OBEX_MODE_CLIENT);
+    PyModule_AddIntConstant(m, "MODE_SERVER", OBEX_MODE_SERVER);
     PyModule_AddIntConstant(m, "EV_PROGRESS", OBEX_EV_PROGRESS);
     PyModule_AddIntConstant(m, "EV_REQHINT", OBEX_EV_REQHINT);
     PyModule_AddIntConstant(m, "EV_REQ", OBEX_EV_REQ);
