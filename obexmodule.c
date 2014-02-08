@@ -49,6 +49,7 @@
 
 static PyTypeObject PyObex_Type;
 static PyTypeObject PyObexObject_Type;
+static PyObject * PyObexIrdaInterface_Type;
 
 typedef struct {
     PyObject_HEAD PyObject *inst_dict;
@@ -567,6 +568,128 @@ pyobex_create_object(PyObex * self, PyObject * args)
     return (PyObject *) obj;
 }
 
+static const char pyobex_enumerate_interfaces__doc__[] =
+    "Enumerate the available interfaces/devices.\n"
+    "\n"
+    "Note that OpenOBEX calls devices 'interfaces' for unknown reasons.\n"
+    "Use get_interface_by_index() to return the interface informations.\n"
+    "\n"
+    ":return: the number of interfaces found\n"
+    ":rtype: int";
+
+static PyObject *
+pyobex_enumerate_interfaces(PyObex * self)
+{
+    int ret = OBEX_EnumerateInterfaces(self->obex);
+
+    if (ret < 0) {
+        PyErr_SetString(PyExc_RuntimeError, "EnumerateInterfaces failed");
+        return NULL;
+    }
+
+    return PyInt_FromLong(ret);
+}
+
+/**
+ * Wrap the given OpenOBEX IrDA interface into a Python structure.
+ *
+ * @return an IrdaInterface object.
+**/
+static PyObject *
+wrap_irda_interface(PyObex * self, const obex_irda_intf_t *iface)
+{
+    return PyObject_CallFunction(
+        PyObexIrdaInterface_Type,
+        "kksbs#s",
+        iface->local,
+        iface->remote,
+        iface->info,
+        iface->charset,
+        iface->hints, sizeof(iface->hints),
+        iface->service);
+}
+
+static const char pyobex_get_interface_by_index__doc__[] =
+    "Return information about an interface/device.\n"
+    "\n"
+    "enumerate_interfaces() returns the number of interfaces available.\n"
+    "\n"
+    ":param index: the interface index\n"
+    ":type  index: int\n"
+    ":return: an interface description object\n"
+    ":rtype: IrdaInterface";
+
+static PyObject *
+pyobex_get_interface_by_index(PyObex * self, PyObject * args)
+{
+    int index;
+    obex_interface_t * iface;
+
+    if (!PyArg_ParseTuple(args, "i:get_interface_by_index", &index)) {
+        return NULL;
+    }
+
+    iface = OBEX_GetInterfaceByIndex(self->obex, index);
+    if (!iface) {
+        PyErr_SetString(PyExc_RuntimeError, "GetInterfaceByIndex failed");
+        return NULL;
+    }
+
+    switch (self->type) {
+    case OBEX_TRANS_IRDA:
+        return wrap_irda_interface(self, &iface->irda);
+    default:
+        PyErr_SetString(PyExc_TypeError, "unhandled transport type");
+        return NULL;
+    }
+}
+
+static const char pyobex_interface_connect__doc__[] =
+    "Connect to a device using an interface index.\n"
+    "\n"
+    "The index should be the same used in get_interface_by_index()\n"
+    "\n"
+    ":param index: the interface index\n"
+    ":type  index: int";
+
+static PyObject *
+pyobex_interface_connect(PyObex * self, PyObject * args)
+{
+    int index;
+    obex_interface_t *iface;
+    int rc;
+
+    if (!PyArg_ParseTuple(args, "i:interface_connect", &index)) {
+        return NULL;
+    }
+
+    iface = OBEX_GetInterfaceByIndex(self->obex, index);
+    if (!iface) {
+        PyErr_SetString(PyExc_ValueError, "invalid interface index");
+        return NULL;
+    }
+
+    rc = OBEX_InterfaceConnect(self->obex, iface);
+    if (rc < 0) {
+        PyErr_SetString(PyExc_OSError, strerror(rc));
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static const char pyobex_free_interfaces__doc__[] =
+    "Free internal structures used for enumerating interfaces.\n"
+    "\n"
+    "This is not strictly necessary, but may be useful to free up some memory.";
+
+static PyObject *
+pyobex_free_interfaces(PyObex * self, PyObject * args)
+{
+    OBEX_FreeInterfaces(self->obex);
+    Py_RETURN_NONE;
+}
+
 static int
 pyobex_object_init(PyObexObject * self, PyObject * args, PyObject * kwds)
 {
@@ -986,6 +1109,10 @@ static PyMethodDef pyobex_methods[] = {
     {"create_object", (PyCFunction) pyobex_create_object, METH_O},
     {"request_object", (PyCFunction) pyobex_request_object, METH_VARARGS},
     {"set_mtu", (PyCFunction) pyobex_set_mtu, METH_VARARGS},
+    {"enumerate_interfaces", (PyCFunction) pyobex_enumerate_interfaces, METH_NOARGS, pyobex_enumerate_interfaces__doc__},
+    {"get_interface_by_index", (PyCFunction) pyobex_get_interface_by_index, METH_VARARGS, pyobex_get_interface_by_index__doc__},
+    {"interface_connect", (PyCFunction) pyobex_interface_connect, METH_VARARGS, pyobex_interface_connect__doc__},
+    {"free_interfaces", (PyCFunction) pyobex_free_interfaces, METH_NOARGS, pyobex_free_interfaces__doc__},
     {NULL, NULL},
 };
 
@@ -1100,7 +1227,31 @@ static PyTypeObject PyObexObject_Type = {
     _PyObject_Del,        /* tp_free */
 };
 
+/**
+ * Create a Python type for the get_interface_by_index() return value.
+ *
+ * This uses a namedtuple to create something we can return to the user.
+ *
+ * @return a PyObject of a class type, or NULL on error.
+**/
+static PyObject *
+pyobex_create_irda_interface_type(void)
+{
+    PyObject * collections = PyImport_ImportModule("collections");
 
+    if (!collections)
+        return NULL;
+
+    PyObject * ret = PyObject_CallMethod(
+        collections, "namedtuple",
+        "s(ssssss)",
+        "IrdaInterface",
+        "local", "remote", "info", "charset", "hints", "services");
+
+    Py_DECREF(collections);
+
+    return ret;
+}
 
 static PyMethodDef _ObexMethods[] = {
     {NULL, NULL, 0, NULL}
@@ -1111,6 +1262,8 @@ init_obex()
 {
     PyObject *m;
     PyObject *d;
+
+    PyObexIrdaInterface_Type = pyobex_create_irda_interface_type();
 
     m = Py_InitModule("_obex", _ObexMethods);
     d = PyModule_GetDict(m);
