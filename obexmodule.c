@@ -843,7 +843,7 @@ pyobex_object_get_headers(PyObexObject * self)
                 object = PyInt_FromLong((long) hv.bq1);
                 break;
             case OBEX_HDR_TYPE_BYTES:
-                object = PyBuffer_FromMemory((void *) hv.bs, hv_size);
+                object = PyString_FromStringAndSize((void *) hv.bs, hv_size);
                 break;
             case OBEX_HDR_TYPE_UNICODE:
                 object =
@@ -910,6 +910,9 @@ pyobex_object_read_stream(PyObexObject * self)
     len = OBEX_ObjectReadStream(obex->obex, self->object, &buf);
     if (len == 0) {
         Py_RETURN_NONE;
+    } else if (len < 0) {
+        PyErr_Format(PyExc_RuntimeError, "read failed: %d", len);
+        return NULL;
     }
     return PyBuffer_FromMemory((void *) buf, len);
 }
