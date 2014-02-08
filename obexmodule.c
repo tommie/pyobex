@@ -1,6 +1,8 @@
 #include <Python.h>
 #include <structmember.h>
+#if HAVE_BLUEZ
 #include <bluetooth/bluetooth.h>
+#endif
 #include <openobex/obex.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -249,6 +251,7 @@ pyobex_register_inet(PyObex * self, PyObject * args)
     Py_RETURN_NONE;
 }
 
+#if HAVE_BLUEZ
 static PyObject *
 pyobex_register_bluetooth(PyObex * self, PyObject * args)
 {
@@ -265,7 +268,7 @@ pyobex_register_bluetooth(PyObex * self, PyObject * args)
     }
     Py_RETURN_NONE;
 }
-
+#endif
 
 static PyObject *
 pyobex_register(PyObex * self, PyObject * args)
@@ -273,14 +276,17 @@ pyobex_register(PyObex * self, PyObject * args)
     switch (self->type) {
         case OBEX_TRANS_IRDA:
             return pyobex_register_irda(self, args);
+#if HAVE_BLUEZ
         case OBEX_TRANS_BLUETOOTH:
             return pyobex_register_bluetooth(self, args);
+#endif
         case OBEX_TRANS_INET:
             return pyobex_register_inet(self, args);
     }
     PyErr_SetString(PyExc_RuntimeError, "Not Support Transport type");
     return NULL;
 }
+
 static PyObject *
 pyobex_fileno(PyObex * self)
 {
@@ -326,6 +332,8 @@ pyobex_connect_inet(PyObex * self, PyObject * args)
     Py_RETURN_NONE;
 }
 
+
+#if HAVE_BLUEZ
 static PyObject *
 pyobex_connect_bluetooth(PyObex * self, PyObject * args)
 {
@@ -348,6 +356,7 @@ pyobex_connect_bluetooth(PyObex * self, PyObject * args)
     }
     Py_RETURN_NONE;
 }
+#endif
 
 
 static PyObject *
@@ -377,8 +386,10 @@ pyobex_connect(PyObex * self, PyObject * args)
     switch (self->type) {
         case OBEX_TRANS_IRDA:
             return pyobex_connect_irda(self, args);
+#if HAVE_BLUEZ
         case OBEX_TRANS_BLUETOOTH:
             return pyobex_connect_bluetooth(self, args);
+#endif
         case OBEX_TRANS_INET:
             return pyobex_connect_inet(self, args);
         case OBEX_TRANS_FD:
