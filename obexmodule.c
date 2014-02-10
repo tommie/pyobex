@@ -521,7 +521,16 @@ pyobex_request_object(PyObex *self, PyObject *args)
             Py_XDECREF(r);
         }
     }
-    OBEX_Request(self->obex, object);
+
+    i = OBEX_Request(self->obex, object);
+
+    if (i)
+    {
+        PyErr_Format(PyExc_OSError, "OBEX request failed: %d", -i);
+        Py_DECREF(obj);
+        return NULL;
+    }
+
     Py_INCREF(obj);
     return (PyObject *)obj;
 }
