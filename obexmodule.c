@@ -455,6 +455,10 @@ pyobex_accept(PyObex * self)
 static PyObject *
 pyobex_handle(PyObex * self, PyObject * args)
 {
+    /* NOTE: The timeout argument is in milliseconds.
+     * When implementing the newer work(), we should
+     * use the more Python-friendly seconds.
+     */
     int rc, timeout = 0;
     if (!PyArg_ParseTuple(args, "|i:obex_handle", &timeout)) {
         PyErr_SetString(PyExc_RuntimeError,
@@ -549,6 +553,27 @@ pyobex_set_mtu(PyObex * self, PyObject * args)
         mtu_tx_max = OBEX_DEFAULT_MTU;
     }
     OBEX_SetTransportMTU(self->obex, mtu_rx, mtu_tx_max);
+    Py_RETURN_NONE;
+}
+
+static const char pyobex_set_timeout__doc__[] =
+    "Set the timeout for read/write operations.\n"
+    "\n"
+    "Only useful if the underlying transport supports it."
+    "\n"
+    ":param timeout: the maximum time to wait, in seconds.\n"
+    ":type  timeout: float";
+
+static PyObject *
+pyobex_set_timeout(PyObex * self, PyObject * args)
+{
+    float timeout;
+
+    if (!PyArg_ParseTuple(args, "f:obex_set_timeout", &timeout)) {
+        return NULL;
+    }
+
+    OBEX_SetTimeout(self->obex, (int64_t) (timeout * 1000));
     Py_RETURN_NONE;
 }
 
@@ -1118,6 +1143,7 @@ static PyMethodDef pyobex_methods[] = {
     {"create_object", (PyCFunction) pyobex_create_object, METH_O},
     {"request_object", (PyCFunction) pyobex_request_object, METH_VARARGS},
     {"set_mtu", (PyCFunction) pyobex_set_mtu, METH_VARARGS},
+    {"set_timeout", (PyCFunction) pyobex_set_timeout, METH_VARARGS, pyobex_set_timeout__doc__},
     {"enumerate_interfaces", (PyCFunction) pyobex_enumerate_interfaces, METH_NOARGS, pyobex_enumerate_interfaces__doc__},
     {"get_interface_by_index", (PyCFunction) pyobex_get_interface_by_index, METH_VARARGS, pyobex_get_interface_by_index__doc__},
     {"interface_connect", (PyCFunction) pyobex_interface_connect, METH_VARARGS, pyobex_interface_connect__doc__},
