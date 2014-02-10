@@ -225,7 +225,7 @@ pyobex_register_irda(PyObex * self, PyObject * args)
         return NULL;
     }
     rc = IrOBEX_ServerRegister(self->obex, service);
-    if (rc == -1) {
+    if (rc < 0) {
         PyErr_SetString(PyExc_OSError, strerror(errno));
         return NULL;
     }
@@ -241,7 +241,7 @@ pyobex_register_tcp(PyObex * self, PyObject * args)
     address.sin_addr.s_addr = htonl(INADDR_ANY);
 
     rc = TcpOBEX_ServerRegister(self->obex, (struct sockaddr*) &address, sizeof(address));
-    if (rc == -1) {
+    if (rc < 0) {
         PyErr_SetString(PyExc_OSError, strerror(errno));
         return NULL;
     }
@@ -259,7 +259,7 @@ pyobex_register_bluetooth(PyObex * self, PyObject * args)
     }
 
     rc = BtOBEX_ServerRegister(self->obex, BDADDR_ANY, service);
-    if (rc == -1) {
+    if (rc < 0) {
         PyErr_SetString(PyExc_OSError, strerror(errno));
         return NULL;
     }
@@ -301,7 +301,7 @@ pyobex_connect_irda(PyObex * self, PyObject * args)
         return NULL;
     }
     rc = IrOBEX_TransportConnect(self->obex, service);
-    if (rc == -1) {
+    if (rc < 0) {
         PyErr_SetString(PyExc_OSError, strerror(errno));
         return NULL;
     }
@@ -323,7 +323,7 @@ pyobex_connect_tcp(PyObex * self, PyObject * args)
 
     rc = TcpOBEX_TransportConnect(self->obex, (struct sockaddr *) &address,
                  len);
-    if (rc == -1) {
+    if (rc < 0) {
         PyErr_SetString(PyExc_OSError, strerror(errno));
         return NULL;
     }
@@ -348,7 +348,7 @@ pyobex_connect_bluetooth(PyObex * self, PyObject * args)
 
     rc = BtOBEX_TransportConnect(self->obex, BDADDR_ANY, &bdaddr_dst,
                  channel);
-    if (rc == -1) {
+    if (rc < 0) {
         PyErr_SetString(PyExc_OSError, strerror(errno));
         return NULL;
     }
@@ -370,7 +370,7 @@ pyobex_transport_setup(PyObex *self, PyObject *args)
     if (wfd == -1) wfd = rfd;
 
     rc = FdOBEX_TransportSetup(self->obex, rfd, wfd, mtu);
-    if (rc == -1) {
+    if (rc < 0) {
         PyErr_SetString(PyExc_OSError, strerror(errno));
         return NULL;
     }
