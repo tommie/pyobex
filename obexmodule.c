@@ -978,14 +978,14 @@ pyobex_object_get_headers(PyObexObject * self)
 {
     obex_headerdata_t hv;
     uint8_t hdr_type;
-    Py_ssize_t hv_size;
+    uint32_t hv_size;
     PyObject *object, *key, *dict;
     int r;
 
     PyObex *obex = self->obex;
     dict = PyDict_New();
     while ((r = OBEX_ObjectGetNextHeader
-            (obex->obex, self->object, &hdr_type, &hv, (uint32_t *)&hv_size))) {
+            (obex->obex, self->object, &hdr_type, &hv, &hv_size))) {
         if (r < 0) {
             Py_DECREF(dict);
             PyErr_SetString(PyExc_RuntimeError, "header is invalid.");
