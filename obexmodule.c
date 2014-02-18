@@ -1321,6 +1321,7 @@ init_obex()
     PyModule_AddIntConstant(m, "EV_STREAMAVAIL", OBEX_EV_STREAMAVAIL);
     PyModule_AddIntConstant(m, "EV_UNEXPECTED", OBEX_EV_UNEXPECTED);
     PyModule_AddIntConstant(m, "EV_REQCHECK", OBEX_EV_REQCHECK);
+    PyModule_AddIntConstant(m, "EV_CONTINUE", OBEX_EV_CONTINUE);
 
     PyModule_AddIntConstant(m, "FL_KEEPSERVER", OBEX_FL_KEEPSERVER);
     PyModule_AddIntConstant(m, "FL_FILTERHINT", OBEX_FL_FILTERHINT);
